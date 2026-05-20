@@ -102,6 +102,13 @@ Place, Suite 330, Boston, MA 02111-1307 USA
     {PCI_VENDOR_ID_ATI, 0x7360, op, DEVICE_INFO(AMD_NAVI12)}, \
     {PCI_VENDOR_ID_ATI, 0x7362, op, DEVICE_INFO(AMD_NAVI12)}
 
+/* Phoenix = Ryzen 7040 (Radeon 780M), Hawk Point = Ryzen 8040 (Radeon 780M) */
+/* Navi 33 / RDNA 3 discrete mobile variants also use similar reset */
+#define _AMD_PHOENIX(op) \
+    {PCI_VENDOR_ID_ATI, 0x164e, op, DEVICE_INFO(AMD_PHOENIX)}, \
+    {PCI_VENDOR_ID_ATI, 0x1900, op, DEVICE_INFO(AMD_PHOENIX)}, \
+    {PCI_VENDOR_ID_ATI, 0x1507, op, DEVICE_INFO(AMD_PHOENIX)}
+
 #define _AMD_ARCTURUS(op) \
     {PCI_VENDOR_ID_ATI, 0x738c, op, DEVICE_INFO(AMD_VEGA20)} //Instinct MI100
 
@@ -114,6 +121,7 @@ static const struct vendor_reset_cfg vendor_reset_devices[] = {
     _AMD_NAVI10(&amd_navi10_ops),
     _AMD_NAVI14(&amd_navi10_ops),
     _AMD_NAVI12(&amd_navi10_ops),
+    _AMD_PHOENIX(&amd_phoenix_ops),
     _AMD_ARCTURUS(&amd_vega20_ops),
 
     /* end of array guard */

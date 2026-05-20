@@ -64,6 +64,7 @@ updating your initrd.
 |AMD|Navi 10| 5600XT, 5700, 5700XT
 |AMD|Navi 12| Pro 5600M |
 |AMD|Navi 14| Pro 5300, RX 5300, 5500XT
+|AMD|Phoenix / Hawk Point (RDNA 3)| Radeon 780M (Ryzen 7040/8040 APU)
 
 ## Developing
 
