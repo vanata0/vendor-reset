@@ -93,18 +93,22 @@ static int amd_phoenix_reset(struct vendor_reset_dev *dev)
     goto free_adev;
   }
 
+  /*
+   * BIOS read is best-effort for iGPUs: the PCI ROM BAR is often absent on
+   * HawkPoint/Phoenix, and the platform BIOS path may or may not expose the
+   * VBIOS depending on firmware.  We only need bios_scratch_reg_offset to
+   * clear the "engine hung" scratch bits, which is informational and not
+   * required for the PSP Mode 1 reset itself.
+   */
   if (!amdgpu_get_bios(adev))
   {
-    vr_err(dev, "amdgpu_get_bios failed\n");
-    ret = -ENOTSUPP;
-    goto free_adev;
+    vr_warn(dev, "amdgpu_get_bios failed, will skip scratch reg clear\n");
   }
-
-  ret = atom_bios_init(adev);
-  if (ret)
+  else
   {
-    vr_err(dev, "atom_bios_init failed: %d\n", ret);
-    goto free_adev;
+    ret = atom_bios_init(adev);
+    if (ret)
+      vr_warn(dev, "atom_bios_init failed: %d, will skip scratch reg clear\n", ret);
   }
 
   /* Wait for SOC to be ready (SOL register) */
@@ -145,13 +149,13 @@ static int amd_phoenix_reset(struct vendor_reset_dev *dev)
       goto free_adev;
   }
 
-  /* Tell driver that NVRAM is lost - everything needs reset */
-  vr_info(dev, "Clearing scratch regs 6 and 7\n");
-  WREG32(adev->bios_scratch_reg_offset + 6, 0);
-  WREG32(adev->bios_scratch_reg_offset + 7, 0);
-
-  /* Mark engine as hung for ATOM BIOS */
-  amdgpu_atombios_scratch_regs_engine_hung(adev, true);
+  if (adev->bios_scratch_reg_offset)
+  {
+    vr_info(dev, "Clearing scratch regs 6 and 7\n");
+    WREG32(adev->bios_scratch_reg_offset + 6, 0);
+    WREG32(adev->bios_scratch_reg_offset + 7, 0);
+    amdgpu_atombios_scratch_regs_engine_hung(adev, true);
+  }
 
   /*
    * Save PCI state so we can restore after reset
@@ -217,7 +221,8 @@ static int amd_phoenix_reset(struct vendor_reset_dev *dev)
 
 out:
   pci_restore_state(dev->pdev);
-  amdgpu_atombios_scratch_regs_engine_hung(adev, false);
+  if (adev->bios_scratch_reg_offset)
+    amdgpu_atombios_scratch_regs_engine_hung(adev, false);
 
 free_adev:
   amd_fake_dev_fini(adev);
