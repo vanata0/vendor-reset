@@ -69,6 +69,27 @@ Place, Suite 330, Boston, MA 02111-1307 USA
 
 extern bool amdgpu_get_bios(struct amd_fake_dev *adev);
 
+/*
+ * Don't set PCI_DEV_FLAGS_NO_BUS_RESET for Phoenix iGPU.
+ * Unlike discrete AMD GPUs, Phoenix bus reset works correctly and is used
+ * as fallback when PSP Mode 1 reset is unavailable.
+ */
+static int amd_phoenix_probe(const struct vendor_reset_cfg *cfg,
+                             struct pci_dev *dev)
+{
+  return 0;
+}
+
+static int amd_phoenix_pre_reset(struct vendor_reset_dev *dev)
+{
+  int ret = amd_common_pre_reset(dev);
+  if (ret < 0)
+    return ret;
+  /* Phoenix bus reset works — clear the flag set by amd_common_pre_reset */
+  dev->pdev->dev_flags &= ~PCI_DEV_FLAGS_NO_BUS_RESET;
+  return 0;
+}
+
 static int amd_phoenix_reset(struct vendor_reset_dev *dev)
 {
   struct amd_vendor_private *priv = amd_private(dev);
@@ -120,7 +141,7 @@ static int amd_phoenix_reset(struct vendor_reset_dev *dev)
     udelay(1);
   }
 
-  if (sol == ~1L)
+  if (!timeout)
   {
     vr_warn(dev, "Timed out waiting for SOL to be valid\n");
     /* continue anyway - sometimes reset still works */
@@ -192,8 +213,8 @@ static int amd_phoenix_reset(struct vendor_reset_dev *dev)
   tmp = psp_wait_for(adev, offset, 0x80000000, 0x80000000, false);
   if (tmp)
   {
-    vr_warn(dev, "PSP did not acknowledge reset\n");
-    ret = -EINVAL;
+    vr_warn(dev, "PSP did not acknowledge reset, will fall back to bus reset\n");
+    ret = -ENOTTY;
     goto out;
   }
 
@@ -221,8 +242,8 @@ static int amd_phoenix_reset(struct vendor_reset_dev *dev)
   if (!timeout &&
       !(RREG32_SOC15(MP0, 0, regMP0_SMN_C2PMSG_35) & 0x80000000L))
   {
-    vr_warn(dev, "timed out waiting for PSP bootloader after reset\n");
-    ret = -ETIME;
+    vr_warn(dev, "timed out waiting for PSP bootloader after reset, will fall back to bus reset\n");
+    ret = -ENOTTY;
   }
   else
     vr_info(dev, "PSP Mode 1 Reset successful\n");
@@ -241,8 +262,8 @@ free_adev:
 const struct vendor_reset_ops amd_phoenix_ops =
 {
   .version = {1, 0},
-  .probe = amd_common_probe,
-  .pre_reset = amd_common_pre_reset,
+  .probe = amd_phoenix_probe,
+  .pre_reset = amd_phoenix_pre_reset,
   .reset = amd_phoenix_reset,
   .post_reset = amd_common_post_reset,
 };
