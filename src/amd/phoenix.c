@@ -149,35 +149,12 @@ static int amd_phoenix_reset(struct vendor_reset_dev *dev)
       goto free_adev;
 
     /*
-     * If SMU is unresponsive but MP1 interrupts are still enabled,
-     * the GPU is stuck mid-run (e.g. VM crash). Reset MP1 first to
-     * bring SMU back to a clean state before attempting PSP Mode 1 reset.
-     * This mirrors the navi10 reset path for the same stuck condition.
-     * smnMP1_PUB_CTRL is at the same address on SMU v13 as v11 (0x3010b14).
+     * NOTE: Do NOT reset MP1 via smnMP1_PUB_CTRL on Phoenix iGPU.
+     * MP1 is the platform-wide SMU on an APU — it controls host CPU power
+     * management too. Writing a hardware reset to it while the host is
+     * running will hang the entire system.  Discrete GPUs (navi10, vega20)
+     * can safely reset their own MP1 because it is isolated on the card.
      */
-    if (smu_resp != 0x01 && mp1_intr)
-    {
-      vr_info(dev, "MP1 reset (SMU resp=%x)\n", smu_resp);
-      /* MP1_SMN_PUB_CTRL__LX3_RESET_MASK = 0x1 on mp_13_0_0 */
-      WREG32_PCIE(MP1_Public | (smnMP1_PUB_CTRL & 0xffffffff), 0x1);
-      WREG32_PCIE(MP1_Public | (smnMP1_PUB_CTRL & 0xffffffff), 0x0);
-
-      vr_info(dev, "waiting for MP1 restart\n");
-      for (timeout = 100000; timeout; --timeout)
-      {
-        tmp = RREG32_PCIE(MP1_Public |
-                          (smnMP1_FIRMWARE_FLAGS & 0xffffffff));
-        if ((tmp & MP1_FIRMWARE_FLAGS__INTERRUPTS_ENABLED_MASK) >>
-            MP1_FIRMWARE_FLAGS__INTERRUPTS_ENABLED__SHIFT)
-          break;
-        udelay(1);
-      }
-      if (!timeout)
-        vr_warn(dev, "timed out waiting for MP1 restart\n");
-
-      smu_wait(adev);
-    }
-
   }
 
   if (adev->bios_scratch_reg_offset)
